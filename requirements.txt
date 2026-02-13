@@ -1,0 +1,11 @@
+mlflow==3.9
+pytest==8
+torch==2.10
+scitools-iris=3.14
+xarray=2026.1
+zarr=3.1
+cftime
+matplotlib=3.10
+cartopy=0.25
+scores
+ipykernel
