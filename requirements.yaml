@@ -1,0 +1,27 @@
+name: ai4c_hack
+meta:
+ active: true    
+ owner: Stephen Haddad
+ contact: stephen.haddad@metoffice.gov.uk
+ released: 206-03-16
+ core_packages:
+  - pytorch
+  - scikit-learn
+  - iris
+  - xarray
+  - mlflow
+channels:
+  - https://metoffice.jfrog.io/metoffice/api/conda/conda-mo-internal
+dependencies:
+  - cartopy=0.25
+  - iris=3.14
+  - jupyterlab
+  - matplotlib=3.10
+  - pandas=2.3
+  - pytorch=2.10
+  - scikit-learn=1.8
+  - xarray=2026.1
+  - mlflow=3.9
+  - scores
+  - zarr=3.1
+  - ipykernel
