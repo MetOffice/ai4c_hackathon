@@ -3,15 +3,9 @@ meta:
  active: true    
  owner: Stephen Haddad
  contact: stephen.haddad@metoffice.gov.uk
- released: 206-03-16
- core_packages:
-  - pytorch
-  - scikit-learn
-  - iris
-  - xarray
-  - mlflow
+ released: 2026-03-16
 channels:
-  - https://metoffice.jfrog.io/metoffice/api/conda/conda-mo-internal
+  - conda-forge
 dependencies:
   - cartopy=0.25
   - iris=3.14
