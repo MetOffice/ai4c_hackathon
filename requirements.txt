@@ -11,3 +11,4 @@ zarr==3.1
 cftime
 scores
 ipykernel
+einops
