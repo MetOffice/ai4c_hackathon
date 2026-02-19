@@ -1,0 +1,21 @@
+name: ai4c_hack
+meta:
+ active: true    
+ owner: Stephen Haddad
+ contact: stephen.haddad@metoffice.gov.uk
+ released: 2026-03-16
+channels:
+  - conda-forge
+dependencies:
+  - cartopy=0.25
+  - iris=3.14
+  - jupyterlab
+  - matplotlib=3.10
+  - pandas=2.3
+  - pytorch=2.10
+  - scikit-learn=1.8
+  - xarray=2026.1
+  - mlflow=3.9
+  - scores
+  - zarr=3.1
+  - ipykernel
