@@ -19,3 +19,4 @@ dependencies:
   - scores
   - zarr=3.1
   - ipykernel
+  nc-time-axis
