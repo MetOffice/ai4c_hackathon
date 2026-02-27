@@ -1,5 +1,9 @@
 {
     "platform": "mo_linux",
+    "default_dirs": {
+        "mo_linux": "/data/users/dscop/ml_tutorial/",
+        "jasmin": "/gws/nopw/j04/mohc_shared/dscop/"
+    },
     "climate_subgroups": {
         "non-land": "None",
          "Af": "Tropical, rainforest",
