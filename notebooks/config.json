@@ -4,6 +4,7 @@
         "mo_linux": "/data/users/dscop/ml_tutorial/",
         "jasmin": "/gws/nopw/j04/mohc_shared/dscop/"
     },
+    "random_seed": 12345,
     "climate_subgroups": {
         "non-land": "None",
          "Af": "Tropical, rainforest",
