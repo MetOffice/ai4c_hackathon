@@ -64,6 +64,7 @@ def create_dataframe_period(data_period_scenario, period, scenario):
     return df_climate_zones
 
 def process_period_scenario(path_dict, current_res, current_period, current_scenario, out_path):
+    print(f'processing segment {current_period} - {current_scenario}')
     current_data = {ds_id: xarray.open_dataset(current_path[current_res]) for ds_id, current_path in path_dict.items()}
     # process into a dataframe
     current_df = create_dataframe_period(
@@ -71,16 +72,15 @@ def process_period_scenario(path_dict, current_res, current_period, current_scen
         current_period,
         current_scenario)
     current_df.to_csv(out_path, index=False)
-    return None
-
-
-
+    return current_df
 
 current_platform = tutorial_config['platform']
 
-root_data_dir = get_platform_dir(current_platform)
-ml_ready_output_dir = root_data_dir / 'ml_ready'
-
+# root_data_dir = get_platform_dir(current_platform)
+root_data_dir = pathlib.Path(os.environ['SCRATCH']) / 'climate_zones'
+ml_ready_output_dir = root_data_dir / 'arco'
+print(f'output dir {ml_ready_output_dir}')
+    
 resolutions_dict = {float(k1): v1 for k1,v1 in tutorial_config['resolutions_names'].items()}
 dataset_prefix_dict = tutorial_config['dataset_prefix']
 
@@ -130,10 +130,11 @@ data_path_dict = {
     for (start_year, end_year), current_scenarios in time_periods.items()                                                                                                             
 }
 
-inter_paths = []
+inter_paths = {}
 pool_args_list = {}
 for current_res, res_str in resolutions_dict.items():
     climate_zones_df_list = []
+    inter_paths[current_res]= []
     res_args = []
     for current_period, scenario_paths in data_path_dict.items():
         for current_scenario, scenario_data in scenario_paths.items():
@@ -142,7 +143,7 @@ for current_res, res_str in resolutions_dict.items():
                                                                              end=current_period[1],
                                                                              scenario=current_scenario,
                                                                             )
-            inter_paths += [out_path]
+            inter_paths[current_res] += [out_path]
             res_args  += [(scenario_data,
                                 current_res,
                                 current_period,
@@ -151,17 +152,28 @@ for current_res, res_str in resolutions_dict.items():
                                )]
     pool_args_list[current_res] = res_args
 
-spice_pool = multiprocessing.Pool(4)
-spice_pool
+use_multiprocessing = False
+print('starting data processing')
+
+if use_multiprocessing:
+    spice_pool = multiprocessing.Pool(4)
+    spice_pool
 
 
-for current_res, res_str in resolutions_dict.items():
+for current_res, res_str in reversed(resolutions_dict.items()):
     print(current_res)
-    res_it = spice_pool.starmap(process_period_scenario, pool_args_list[current_res])
-    #trigger execution, but throw away data and instead read from disk, to reduce memory usage.
-    period_df_list = [df_ps for df_ps in res_it]
-    climate_zones_merged_df = pandas.concat([pandas.read_csv(path1) for path1 in inter_paths]).reset_index().drop(['index'],axis='columns')
-    # climate_zones_merged_df = pandas.concat([df_ps for df_ps in res_it]).reset_index().drop(['index'],axis='columns')
+    if use_multiprocessing:
+        res_it = spice_pool.starmap(process_period_scenario, pool_args_list[current_res])
+        #trigger execution, but throw away data and instead read from disk, to reduce memory usage.
+        period_df_list = [df_ps for df_ps in res_it]
+        climate_zones_merged_df = pandas.concat([pandas.read_csv(path1) for path1 in inter_paths[current_res]]).reset_index().drop(['index'],axis='columns')
+    else:
+        print('serial processing')
+        scenario_df_list = []
+        for current_args in pool_args_list[current_res]:
+            scenario_df_list += [process_period_scenario(*current_args)]
+        climate_zones_merged_df = pandas.concat(scenario_df_list).reset_index().drop(['index'],axis='columns')
+    # save out merged dataframe to disk
     out_path = ml_ready_output_dir / csv_out_template.format(resolution=resolutions_dict[current_res])
     print(out_path)
     climate_zones_merged_df.to_csv(out_path, index=False)
