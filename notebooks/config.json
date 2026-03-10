@@ -1,5 +1,5 @@
 {
-    "platform": "mo_linux",
+    "platform": "jasmin",
     "default_dirs": {
         "mo_linux": "/data/users/dscop/ml_tutorial/",
         "jasmin": "/gws/nopw/j04/mohc_shared/dscop/"
