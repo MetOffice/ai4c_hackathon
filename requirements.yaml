@@ -1,4 +1,4 @@
-name: ai4c_hack_spice
+name: ai4c_hack
 meta:
  active: true    
  owner: Stephen Haddad
@@ -20,3 +20,4 @@ dependencies:
   - zarr=3.1
   - ipykernel
   - nc-time-axis
+  - einops
