@@ -1,4 +1,6 @@
 #!/bin/bash -l
+# (C) British Crown Copyright 2017-2026, Met Office.
+# Please see LICENSE.md for license details.
 # This is a helper script for running ML Flow experiment tracker to log the details of your ML training runs
 # If running on Jupyterhub on JASMIN:
 # - This script should be run in a terminal on the notebook server and you should point to venv thast was setup for the notebook server.

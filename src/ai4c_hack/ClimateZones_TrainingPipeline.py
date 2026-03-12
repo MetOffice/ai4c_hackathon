@@ -1,4 +1,5 @@
-import pathlib
+# (C) British Crown Copyright 2017-2026, Met Office.
+# Please see LICENSE.md for license details.import pathlib
 import os
 import datetime
 import json
