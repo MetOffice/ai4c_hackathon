@@ -6,7 +6,9 @@
 # comment/uncomment the env name based on whether you are runing on CPU or GPU
 export ENV_NAME=ai4c_hack_nb_cpu
 #export ENV_NAME=ai4c_hack_nb_gpu
-#export ENV_NAME=pet_dev_nb_gpu_jasmin
+
+# you will need to change this variable, as the JASMIN user name is not available as an environment variable through the notebook server
+export JASMIN_USER=myusername
 
 # uncomment if you don't have a venv directory
 # mkdir ~/venv
@@ -19,8 +21,12 @@ python -m venv ~/venv/${ENV_NAME}
 
 # the next command needs to run in the root directory of the ai4climate hackathon repo. This will be the directory into which you cloned the repository.
 cd ~/ai4c_hackathon
-pip install -r requirements.txt
+export CACHE_DIR=/work/scratch-nopw2/${JASMIN_USER}/cache
+mkdir -p $CACHE_DIR
+
+export TMPDIR=$CACHE_DIR
+pip install --cache-dir $CACHE_DIR -r requirements.txt
 
 # once the environment is setup, we need to "install" it so it is usable in a jupyter notebook
-python -m ipykernel install --user --name ${ENV_NAME}
+python -m ipykernel install --user --name ${ENV_NAME} 
 
