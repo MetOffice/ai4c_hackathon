@@ -10,4 +10,6 @@ This directory contains the main tutorial material for the AI4Climate hackathon.
 - Session 2
   - [Introduction to PyTorch and ML Flow - ClimateZones_Training_Torch.ipynb](ClimateZones_Training_Torch.ipynb)
 - Session - Introduction to AI Downscaling
+  - [Training and Inference with UNet model - unet_tutorial.ipynb](unet_tutorial.ipynb)
+  - [Inference with Flow Matching model - flow_matching_inference_tutorial.ipynb](flow_matching_inference_tutorial.ipynb)
   - <INSERT LINKS TO NOTEBOOKS>
