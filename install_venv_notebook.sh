@@ -9,15 +9,16 @@ export ENV_NAME=ai4c_hack_nb_cpu
 
 # you will need to change this variable, as the JASMIN user name is not available as an environment variable through the notebook server
 export JASMIN_USER=myusername
+export USER_VENV_DIR=/gws/ssde/j25a/mmh_storage/ai4c_user/$JASMIN_USER/
 
 # uncomment if you don't have a venv directory
-# mkdir ~/venv
+mkdir $USER_VENV_DIR 
 
 #create the venv
-python -m venv ~/venv/${ENV_NAME}
+python -m venv $USER_VENV_DIR/${ENV_NAME}
 
 # activate the venv
-.  ~/venv/${ENV_NAME}/bin/activate
+.  $USER_VENV_DIR/${ENV_NAME}/bin/activate
 
 # the next command needs to run in the root directory of the ai4climate hackathon repo. This will be the directory into which you cloned the repository.
 cd ~/ai4c_hackathon
