@@ -2,7 +2,7 @@ import cdsapi
 import pathlib
 
 dataset = "reanalysis-era5-pressure-levels"
-
+current_year = 2010
 var_list = [
         "geopotential",
         "specific_humidity",
@@ -14,7 +14,7 @@ var_list = [
 request = {
     "product_type": ["reanalysis"],
     "variable": var_list,
-    "year": ["2010"],
+    "year": [f'{current_year:04d}'],
     "month": ["01"],
     "day": [
         "01", "02", "03",
@@ -51,12 +51,14 @@ request = {
 client = cdsapi.Client()
 
 data_dir = pathlib.Path('/gws/ssde/j25a/mmh_storage/ai4c_data/era5_pl/')
-current_month = 1
+
 for var_name in var_list:
-    fname = f'era5_{var_name}_{current_month:02d}.nc'
-    request['variable'] = [var_name]
-    request['month'] = [f'{current_month:02d}']
-    req1 = client.retrieve(dataset,
-                    request,
-                    str(data_dir / fname),
-                   )
+    for current_month in range(2,13):
+        print(f'processing data for {var_name}, time {current_year:04d}-{current_month:02d}')
+        fname = f'era5_{var_name}_{current_year:04d}{current_month:02d}.nc'
+        request['variable'] = [var_name]
+        request['month'] = [f'{current_month:02d}']
+        req1 = client.retrieve(dataset,
+                        request,
+                        str(data_dir / fname),
+                       )
