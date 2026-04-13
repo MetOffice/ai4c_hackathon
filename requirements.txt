@@ -1,6 +1,6 @@
 torch==2.10
 scikit-learn==1.8
-pytest==8
+pytest==9.0.3
 scitools-iris==3.14
 xarray==2026.1
 mlflow==3.9
