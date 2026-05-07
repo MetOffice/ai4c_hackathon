@@ -1,10 +1,8 @@
 #!/usr/bin/env python
-# ## AI4Climate ML tutorial - Building a machine learning model with gridded data
-# * Author: Stephen Haddad
-# * Affiliation: UK Met Office
-# * History: 1.0
-# * Last update: 2026-03-16
-# * © British Crown Copyright 2017-2026, Met Office. Please see LICENSE.md for license details.
+# coding: utf-8
+
+
+
 import pathlib
 import os
 import datetime
@@ -15,22 +13,42 @@ import argparse
 import numpy 
 import xarray
 
+import matplotlib
+import matplotlib.pyplot
+import cartopy.crs
+
 import sklearn
 import sklearn.preprocessing
+import sklearn.tree
 
-import mlflow
 
 import torch
 
+import scores
+
+def get_platform_dir(select_platform, config):
+    try:
+        root_path = pathlib.Path(config['default_dirs'][select_platform]) / 'weatherbench'
+    except KeyError:
+        root_path = pathlib.Path(os.environ['HOME']) / 'weatherbench'
+    return root_path
+
+def get_config(config_path):
+    with open (config_path,'r') as tutorial_config:
+        tutorial_config = json.load(tutorial_config)
+    return tutorial_config
 
 
 class WeatherbenchDataset(torch.utils.data.Dataset):
-    def __init__(self, data_dir, time_period, is_train=True):
+    def __init__(self, data_dir, time_period, variables, levels, is_train=True):
         self._is_train=is_train
+        self._variables = variables
+        self._levels = levels
 
         self._ds_norm = xarray.open_zarr(data_dir)
         self._ds_norm = self._ds_norm.loc[{'time':slice(*time_period)}]
-
+        self._ds_norm = self._ds_norm[self._variables]
+        self._ds_norm.loc[dict(level=self._levels)]
 
         self._time_list = (self._ds_norm[ list(self._ds_norm.keys())[0] ]['time'].values)
         self.num_channels = len(self._ds_norm.data_vars)*len(self._ds_norm['level'])
@@ -63,32 +81,48 @@ class WeatherbenchDataset(torch.utils.data.Dataset):
         )
         return select_tensor
 
+def create_data_loaders(wb_arco_path, var_subset, pl_subset, batch_size):
+    """
+    """
+    wb_train_ds = WeatherbenchDataset(wb_arco_path, 
+                                      (datetime.datetime(1980,1,1,0,0), datetime.datetime(1981,11,1,0,0)),                        
+                                      is_train=True,
+                                      variables = var_subset,
+                                      levels=pl_subset,
+                                     )
+    wb_val_ds = WeatherbenchDataset(wb_arco_path, 
+                                    (datetime.datetime(1981,11,2,0,0), datetime.datetime(1982,1,1,0,0)), 
+                                    is_train=False,
+                                    variables = var_subset,
+                                    levels=pl_subset,
+                                   )
+
+    print(f'num channels: {wb_train_ds.num_channels}')
+    print(f'length train: {len(wb_train_ds)}; length validation: {len(wb_val_ds)}')
+
+    wb_train_loader = torch.utils.data.DataLoader(wb_train_ds,
+                                               batch_size=batch_size,
+                                               shuffle=True,
+                                               num_workers=0,
+                                              )
+    
+    wb_val_loader = torch.utils.data.DataLoader(wb_val_ds,
+                                             batch_size=batch_size,
+                                             shuffle=False,
+                                             num_workers=0,
+                                            )
+    return (wb_train_ds, wb_train_loader, wb_val_ds, wb_val_loader)
 
 class Era5AutoEncoder(torch.nn.Module):
-    def __init__(self, num_channels):
+    def __init__(self, num_channels, max_pool=False):
         super(Era5AutoEncoder, self).__init__()
 
         # we have "hard coded" a lot of the architecture hyperparameters in our model class. 
         # Usually you want want to make these arguments for the class so you can vary hyperparameters more easily.
         # Hard coding here makes it easier to follow the architecture definition in the tutorial
         self.num_channels = num_channels
-        self._encoder = torch.nn.Sequential(
-            torch.nn.Conv2d(in_channels=self.num_channels, 
-                            out_channels=16, 
-                            kernel_size=3, 
-                            padding=1,
-                           ),
-            torch.nn.ReLU(),
-            torch.nn.MaxPool2d(2, stride=2),
-            torch.nn.Conv2d(in_channels=16, 
-                            out_channels=32, 
-                            kernel_size=3, 
-                            padding=1,
-                           ),
-            torch.nn.ReLU(),
-            torch.nn.MaxPool2d(2, stride=2),
-            torch.nn.Flatten(1,-1)
-        )
+        self._encoder = self._get_encoder(max_pool)
+
         self._latent_array_dims = (-1,32,8,16)
         self._decoder = torch.nn.Sequential(
             torch.nn.ConvTranspose2d(in_channels=32, out_channels=16, kernel_size=2,stride=2),
@@ -98,7 +132,44 @@ class Era5AutoEncoder(torch.nn.Module):
             torch.nn.Sigmoid(),   
         )
 
-
+    def _get_encoder(self, max_pool):
+        if max_pool:
+            encoder = torch.nn.Sequential(
+                torch.nn.Conv2d(in_channels=self.num_channels, 
+                                out_channels=16, 
+                                kernel_size=3, 
+                                padding=1,
+                               ),
+                torch.nn.ReLU(),
+                torch.nn.MaxPool2d(2, stride=2),
+                torch.nn.Conv2d(in_channels=16, 
+                                out_channels=32, 
+                                kernel_size=3, 
+                                padding=1,
+                               ),
+                torch.nn.ReLU(),
+                torch.nn.MaxPool2d(2, stride=2),
+                torch.nn.Flatten(1,-1)
+            )
+        else:
+            encoder = torch.nn.Sequential(
+                torch.nn.Conv2d(in_channels=self.num_channels, 
+                                out_channels=16, 
+                                kernel_size=3, 
+                                padding=1,
+                                stride=2,
+                               ),
+                torch.nn.ReLU(),
+                torch.nn.Conv2d(in_channels=16, 
+                                out_channels=32, 
+                                kernel_size=3, 
+                                padding=1,
+                                stride=2,
+                               ),
+                torch.nn.ReLU(),
+                torch.nn.Flatten(1,-1)
+            )
+        return encoder
 
     def forward(self, x):
 
@@ -108,28 +179,28 @@ class Era5AutoEncoder(torch.nn.Module):
         # Reconstruct input
         reconstructed = self._decoder(latent.view(self._latent_array_dims))
 
-        return reconstructed        
+        return reconstructed
 
-def run_training(num_epochs, train_loader, val_loader, num_channels):
-    
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    device
-    
-    # Initialize model and move to device
-    ae_model = Era5AutoEncoder(num_channels).to(device)
-    
-    # Loss function and optimizer
+
+
+
+def run_train_loop(device, train_loader, val_loader, num_epochs, learning_rate, num_channels):
+    ae_model = Era5AutoEncoder(num_channels, False).to(device)
+
+    print('num parameters',sum(p.numel() for p in ae_model.parameters() if p.requires_grad))
     loss_function = torch.nn.L1Loss()
-    # criterion = nn.KLDivLoss()
+    # loss_function = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(ae_model.parameters(), 
-                                 lr=1e-4)
+                                 lr=learning_rate)
+    train_start_dt = datetime.datetime.now()
+    
     for epoch_num in range(num_epochs):
+        epoch_start_dt = datetime.datetime.now()
         print(epoch_num)
         epoch_train_loss = 0.0
         epoch_val_loss = 0.0
-        
-        for batch_ix, X_batch in enumerate(wb_train_loader):
-            if (batch_ix % 20) == 0:
+        for batch_ix, X_batch in enumerate(train_loader):
+            if (batch_ix % 1000) == 0:
                 print(batch_ix)
             optimizer.zero_grad()
             predictions = ae_model.forward(X_batch.to(device))
@@ -137,123 +208,115 @@ def run_training(num_epochs, train_loader, val_loader, num_channels):
             loss_batch.backward()
             optimizer.step()
             epoch_train_loss += loss_batch.to('cpu').item()
-        epoch_train_loss /= len(wb_train_loader)
+        epoch_train_loss /= len(train_loader)
         print(epoch_train_loss)
-    return device, ae_model
-    
-    
-def get_config(config_path):
-    with open (config_path,'r') as tutorial_config:
-        tutorial_config = json.load(tutorial_config)
-    return tutorial_config
 
-def get_platform_dir(select_platform, config):
-    try:
-        root_path = pathlib.Path(config['default_dirs'][select_platform]) / 'weatherbench'
-    except KeyError:
-        root_path = pathlib.Path(os.environ['HOME']) / 'weatherbench'
-    return root_path
+    
+        for batch_ix_val, X_batch_val in enumerate(val_loader):
+            predictions_val = ae_model.forward(X_batch_val.to(device))
+            loss_batch_val = loss_function(predictions_val, X_batch_val.to(device))
+            epoch_val_loss += loss_batch_val.to('cpu').item()
+        epoch_val_loss /= len(val_loader)
+        
+        print(epoch_train_loss)
+        print(epoch_val_loss)
+        epoch_duration_minutes = (datetime.datetime.now() - epoch_start_dt) // 60
+        print(f'total train loop time {epoch_duration_minutes} minutes')
+
+
+    train_duration_minutes = (datetime.datetime.now() - train_start_dt) // 60
+    print(f'total train loop time {train_duration_minutes} minutes')
+    return ae_model
+
+def plot_sample_prediction(select_ds, ae_model, device):
+    """
+    create a new data array to contain the model predictions, which can then subsequnetly use the xarray plotting interface
+    """
+    pred_da = xarray.DataArray(select_ds._ds_norm['temperature'][2].sel(level=850))
+    pred_arr = ae_model.forward(select_ds[2].to(device)).to('cpu').detach().numpy() 
+    pred_da.values = pred_arr[0,0,:]
+    
+    # plot results compared to truth
+    fig1 = matplotlib.pyplot.figure('sample prediction - temprature', figsize=(10,16))
+    ax1 = fig1.add_subplot(2,1,1, title='sample truth: temp 850')
+    select_ds._ds_norm['temperature'][2].sel(level=850).plot.contourf(ax=ax1)
+    ax1 = fig1.add_subplot(2,1,2, title='sample prediction: temp 850')
+    pred_da.plot.contourf(ax=ax1)
+    fig1.savefig('sample_temp_850.png')
+
+
+def do_evaluation(ae_model, ds1, device):
+
+    metrics = scores.continuous.rmse(
+        ae_model.forward(ds1.to(device)).to('cpu').detach().numpy(), 
+        ds1.numpy()
+    )
+    return metrics
 
 def get_cmd_args():
     parser = argparse.ArgumentParser(
-        description="Training script arguments"
-    )
-
-    parser.add_argument(
-        "--config-path",
-        dest="config_path",
-        type=pathlib.Path,
-        required=True,
-        help="Path to the config file"
-    )
-
-    parser.add_argument(
-        "--data-dir",
-        dest="data_dir",
-        type=pathlib.Path,
-        required=True,
-        help="Path to the dataset (zarr format)"
-    )
-
-    parser.add_argument(
-        "--model-out-path",
-        dest="model_out_path",
-        type=pathlib.Path,
-        required=True,
-        help="Path to the dataset (zarr format)"
+        prog='train_era5_autoenconder',
+        description='Train an autoencoder on lowres era5 data',
     )
     
-    parser.add_argument(
-        "--batch-size",
-        dest="batch_size",
-        type=int,
-        required=True,
-        help="Number of data points per mini-batch"
-    )
+    parser.add_argument('--num-epochs', dest='num_epochs', type=int, default=10)
+    parser.add_argument('--batch-size', dest='batch_size', type=int, default=4)
+    parser.add_argument('--config-path', dest='config_path', type=pathlib.Path, default=pathlib.Path('config.json') )
+    parser.add_argument('--learning-rate', dest='learning_rate', type=float, default=1e-4)
+    parser.add_argument('--model-out-dir', dest='model_out_dir' , type=pathlib.Path, default=pathlib.Path('.'))
 
-    parser.add_argument(
-        "--num-epochs",
-        dest="num_epochs",
-        type=int,
-        required=True,
-        help="Number epochs to run training loop for"
-    )
+    cmd_args = parser.parse_args()
+    return cmd_args
 
-    parser.add_argument(
-        "--learning-rate",
-        dest="learning_rate",
-        type=float,
-        required=True,
-        help="Learning rate for training"
-    )
-
-    args = parser.parse_args()
-
-    # return as dictionary (W behavior)
-    return args
 
 def main():
     cmd_args = get_cmd_args()
-    tutorial_config = get_config(args.config_path)
-    current_platform = tutorial_config['platform']
-    
-    root_data_dir = get_platform_dir(current_platform, tutorial_config)
+    tutorial_config = get_config(cmd_args.config_path)
+
     resolution_dict = {5.625: '5.625deg'}
+    var_subset = ['temperature']
+    pl_subset = [500, 850,1000]   
+
+    current_platform = tutorial_config['platform']
+    root_data_dir = get_platform_dir(current_platform, tutorial_config)
     weatherbench_dir = root_data_dir / resolution_dict[5.625]
+    
+
     wb_arco_path = root_data_dir / 'wb_arco'
 
-    batch_size = cmd_args.batch_size
-
-    wb_train_ds = WeatherbenchDataset(wb_arco_path, 
-                           (datetime.datetime(1980,1,1,0,0), datetime.datetime(1981,11,1,0,0)),                        
-                           is_train=True,
-                          )
+    (wb_train_ds, wb_train_loader, wb_val_ds, wb_val_loader) = create_data_loaders(wb_arco_path, 
+                                                                                   var_subset,
+                                                                                   pl_subset,
+                                                                                   cmd_args.batch_size,
+                                                                                  )
     
-    wb_val_ds = WeatherbenchDataset(wb_arco_path, 
-                                      (datetime.datetime(1981,11,2,0,0), datetime.datetime(1982,1,1,0,0)), 
-                                      is_train=False,
-                                     )
+    # Autodetect GPU and use if possible
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    
+    ae_model = run_train_loop(device, 
+                              wb_train_loader, 
+                              wb_val_loader,
+                              cmd_args.num_epochs, 
+                              cmd_args.learning_rate,
+                              wb_train_ds.num_channels, 
+                  )
 
-    wb_train_loader = torch.utils.data.DataLoader(wb_train_ds,
-                                           batch_size=batch_size,
-                                           shuffle=True,
-                                           num_workers=0,
-                                          )
-    wb_val_loader = torch.utils.data.DataLoader(wb_val_ds,
-                                         batch_size=batch_size,
-                                         shuffle=False,
-                                         num_workers=0,
-                                        )
+    model_fname = 'era5_ae_model.pth'
+    model_save_path = cmd_args.model_out_dir / model_fname
+    torch.save(ae_model, model_save_path)
 
-    num_epochs = cmd_args.num_epochs
 
-    device, ae_model = run_training(num_epochs, 
-                                    wb_train_loader, 
-                                    wb_val_loader, 
-                                    wb_train_ds.num_channels)
+    metrics_train = do_evaluation(ae_model, wb_train_ds[:10], device)
+    metrics_val = do_evaluation(ae_model, wb_val_ds[:10], device)
 
-    print(f'saving model to {cmd_args.model_out_path}')
-    torch.save(ae_model, cmd_args.model_out_path)
+    plot_sample_prediction(wb_val_ds, ae_model, device)
+
+    print('rmse train')
+    print(metrics_train)
+    
+    print('rmse validation')
+    print(metrics_val)
+
 
 if __name__ == '__main__':
     main()
