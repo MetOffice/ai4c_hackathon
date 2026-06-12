@@ -4,8 +4,8 @@
 # this script shows how to set up a venv for running the tutorial through avenv, for example on the JASMIN notebook server.
 
 # comment/uncomment the env name based on whether you are runing on CPU or GPU
-export ENV_NAME=ai4c_hack_nb_cpu
-#export ENV_NAME=ai4c_hack_nb_gpu
+# export ENV_NAME=ai4c_hack_nb_cpu
+export ENV_NAME=ai4c_hack_nb_gpu
 
 # you will need to change this variable, as the JASMIN user name is not available as an environment variable through the notebook server
 export JASMIN_USER=myusername
