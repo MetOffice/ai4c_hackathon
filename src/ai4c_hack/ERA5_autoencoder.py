@@ -8,6 +8,7 @@ import os
 import datetime
 import json
 import re
+import functools
 import argparse
 
 import numpy 
@@ -121,16 +122,13 @@ class Era5AutoEncoder(torch.nn.Module):
         # Usually you want want to make these arguments for the class so you can vary hyperparameters more easily.
         # Hard coding here makes it easier to follow the architecture definition in the tutorial
         self.num_channels = num_channels
-        self._encoder = self._get_encoder(max_pool)
-
+        
         self._latent_array_dims = (-1,32,8,16)
-        self._decoder = torch.nn.Sequential(
-            torch.nn.ConvTranspose2d(in_channels=32, out_channels=16, kernel_size=2,stride=2),
-            torch.nn.ReLU(),
-            torch.nn.ConvTranspose2d(in_channels=16, out_channels=self.num_channels, kernel_size=2,stride=2),
-            torch.nn.ReLU(),
-            torch.nn.Sigmoid(),   
-        )
+        self._prelatent_size = functools.reduce(lambda a,b:a*b, self._latent_array_dims[1:])
+        self._latent_size = 500
+        
+        self._encoder = self._get_encoder(max_pool)
+        self._decoder = self._get_decoder()
 
     def _get_encoder(self, max_pool):
         if max_pool:
@@ -167,10 +165,23 @@ class Era5AutoEncoder(torch.nn.Module):
                                 stride=2,
                                ),
                 torch.nn.ReLU(),
-                torch.nn.Flatten(1,-1)
+                torch.nn.Flatten(),
+                # torch.nn.Linear(self._prelatent_size, self._latent_size),
+                # torch.nn.ReLU(),
             )
         return encoder
 
+    def _get_decoder(self):
+        """
+        """
+        decoder = torch.nn.Sequential(
+            torch.nn.ConvTranspose2d(in_channels=32, out_channels=16, kernel_size=2,stride=2),
+            torch.nn.ReLU(),
+            torch.nn.ConvTranspose2d(in_channels=16, out_channels=self.num_channels, kernel_size=2,stride=2),
+            # torch.nn.ReLU(),
+            # torch.nn.Sigmoid(),   
+        )
+        return decoder
     def forward(self, x):
 
         # Get latent representation
@@ -178,9 +189,9 @@ class Era5AutoEncoder(torch.nn.Module):
 
         # Reconstruct input
         reconstructed = self._decoder(latent.view(self._latent_array_dims))
+        # reconstructed = self._decoder(latent)
 
         return reconstructed
-
 
 
 
@@ -228,7 +239,7 @@ def run_train_loop(device, train_loader, val_loader, num_epochs, learning_rate, 
     print(f'total train loop time {train_duration_minutes} minutes')
     return ae_model
 
-def plot_sample_prediction(select_ds, ae_model, device):
+def plot_sample_prediction(select_ds, ae_model, device, out_dir):
     """
     create a new data array to contain the model predictions, which can then subsequnetly use the xarray plotting interface
     """
@@ -242,7 +253,7 @@ def plot_sample_prediction(select_ds, ae_model, device):
     select_ds._ds_norm['temperature'][2].sel(level=850).plot.contourf(ax=ax1)
     ax1 = fig1.add_subplot(2,1,2, title='sample prediction: temp 850')
     pred_da.plot.contourf(ax=ax1)
-    fig1.savefig('sample_temp_850.png')
+    fig1.savefig(out_dir / 'sample_temp_850.png')
 
 
 def do_evaluation(ae_model, ds1, device):
@@ -274,8 +285,8 @@ def main():
     tutorial_config = get_config(cmd_args.config_path)
 
     resolution_dict = {5.625: '5.625deg'}
-    var_subset = ['temperature']
-    pl_subset = [500, 850,1000]   
+    var_subset = ['temperature', 'geopotential']
+    pl_subset = [200, 500, 700, 850,1000]   
 
     current_platform = tutorial_config['platform']
     root_data_dir = get_platform_dir(current_platform, tutorial_config)
@@ -309,7 +320,7 @@ def main():
     metrics_train = do_evaluation(ae_model, wb_train_ds[:10], device)
     metrics_val = do_evaluation(ae_model, wb_val_ds[:10], device)
 
-    plot_sample_prediction(wb_val_ds, ae_model, device)
+    plot_sample_prediction(wb_val_ds, ae_model, device, cmd_args.model_out_dir)
 
     print('rmse train')
     print(metrics_train)
