@@ -20,4 +20,4 @@ else
 fi
 
 echo starting MLflow server  "MLFLOW_ROOT: ${MLFLOW_ROOT}  MLFLOW_PORT: ${MLFLOW_PORT}"
-mlflow server --backend-store-uri "sqlite:////${MLFLOW_ROOT}/mlflow.db" --artifacts-destination ${MLFLOW_ROOT}/artifacts/ --registry-store-uri ${MLFLOW_ROOT}/registry/ --port ${MLFLOW_PORT}
+mlflow server --backend-store-uri "sqlite:////${MLFLOW_ROOT}/backend.db" --artifacts-destination ${MLFLOW_ROOT}/artifacts/ --registry-store-uri ${MLFLOW_ROOT}/registry/ --port ${MLFLOW_PORT}

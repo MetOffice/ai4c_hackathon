@@ -22,7 +22,6 @@ import sklearn
 import sklearn.preprocessing
 import sklearn.tree
 
-import mlflow
 
 import torch
 
@@ -40,20 +39,6 @@ def get_config(config_path):
         tutorial_config = json.load(tutorial_config)
     return tutorial_config
 
-def setup_mlflow(mlflow_url, mlflow_port, exp_name):
-    mlflow_server_uri = f'{mlflow_url}:{mlflow_port}'
-
-    print(f'connecting to mlflow server {mlflow_server_uri}')
-
-    mlflow.set_tracking_uri(mlflow_server_uri)
-
-    mlflow.pytorch.autolog()
-
-    if mlflow.get_experiment_by_name(exp_name) is None:
-        exp_id = mlflow.create_experiment(exp_name)
-    current_experiment = mlflow.get_experiment_by_name(exp_name)
-    return mlflow_server_uri, current_experiment
-    
 
 class WeatherbenchDataset(torch.utils.data.Dataset):
     def __init__(self, data_dir, time_period, variables, levels, is_train=True):
@@ -97,17 +82,17 @@ class WeatherbenchDataset(torch.utils.data.Dataset):
         )
         return select_tensor
 
-def create_data_loaders(wb_arco_path, var_subset, pl_subset, batch_size, train_interval, val_interval):
+def create_data_loaders(wb_arco_path, var_subset, pl_subset, batch_size):
     """
     """
     wb_train_ds = WeatherbenchDataset(wb_arco_path, 
-                                      (train_interval[0], train_interval[1]),                        
+                                      (datetime.datetime(1980,1,1,0,0), datetime.datetime(1981,11,1,0,0)),                        
                                       is_train=True,
                                       variables = var_subset,
                                       levels=pl_subset,
                                      )
     wb_val_ds = WeatherbenchDataset(wb_arco_path, 
-                                    (val_interval[0], val_interval[1]),
+                                    (datetime.datetime(1981,11,2,0,0), datetime.datetime(1982,1,1,0,0)), 
                                     is_train=False,
                                     variables = var_subset,
                                     levels=pl_subset,
@@ -210,7 +195,7 @@ class Era5AutoEncoder(torch.nn.Module):
 
 
 
-def run_train_loop(device, train_loader, val_loader, num_epochs, learning_rate, num_channels, batch_size, current_exp, checkpoint_dir=None):
+def run_train_loop(device, train_loader, val_loader, num_epochs, learning_rate, num_channels):
     ae_model = Era5AutoEncoder(num_channels, False).to(device)
 
     print('num parameters',sum(p.numel() for p in ae_model.parameters() if p.requires_grad))
@@ -219,62 +204,39 @@ def run_train_loop(device, train_loader, val_loader, num_epochs, learning_rate, 
     optimizer = torch.optim.Adam(ae_model.parameters(), 
                                  lr=learning_rate)
     train_start_dt = datetime.datetime.now()
-
-    with mlflow.start_run(experiment_id=current_exp.experiment_id) as current_run:
-        mlflow.log_param('num_epochs',num_epochs)
-        mlflow.log_param('learning_rate',learning_rate)
-        mlflow.log_param('batch_size',batch_size)
-        
-        for epoch_num in range(num_epochs):
-            epoch_start_dt = datetime.datetime.now()
-            print(epoch_num)
-            epoch_train_loss = 0.0
-            for batch_ix, X_batch in enumerate(train_loader):
-                if (batch_ix % 1000) == 0:
-                    print(batch_ix)
-                optimizer.zero_grad()
-                predictions = ae_model.forward(X_batch.to(device))
-                loss_batch = loss_function(predictions, X_batch.to(device))
-                loss_batch.backward()
-                optimizer.step()
+    
+    for epoch_num in range(num_epochs):
+        epoch_start_dt = datetime.datetime.now()
+        print(epoch_num)
+        epoch_train_loss = 0.0
+        epoch_val_loss = 0.0
+        for batch_ix, X_batch in enumerate(train_loader):
+            if (batch_ix % 1000) == 0:
+                print(batch_ix)
+            optimizer.zero_grad()
+            predictions = ae_model.forward(X_batch.to(device))
+            loss_batch = loss_function(predictions, X_batch.to(device))
+            loss_batch.backward()
+            optimizer.step()
             epoch_train_loss += loss_batch.to('cpu').item()
-            epoch_train_loss /= len(train_loader)
-            print(epoch_train_loss)
+        epoch_train_loss /= len(train_loader)
+        print(epoch_train_loss)
 
-            epoch_val_loss = 0.0
-            for batch_ix_val, X_batch_val in enumerate(val_loader):
-                predictions_val = ae_model.forward(X_batch_val.to(device))
-                loss_batch_val = loss_function(predictions_val, X_batch_val.to(device))
-                epoch_val_loss += loss_batch_val.to('cpu').item()
-            epoch_val_loss /= len(val_loader)
-            mlflow.log_metrics(
-                {'train_loss': epoch_train_loss, 'val_loss': epoch_val_loss},
-                step=epoch_num,
-                )
+    
+        for batch_ix_val, X_batch_val in enumerate(val_loader):
+            predictions_val = ae_model.forward(X_batch_val.to(device))
+            loss_batch_val = loss_function(predictions_val, X_batch_val.to(device))
+            epoch_val_loss += loss_batch_val.to('cpu').item()
+        epoch_val_loss /= len(val_loader)
+        
+        print(epoch_train_loss)
+        print(epoch_val_loss)
+        epoch_duration_minutes = (datetime.datetime.now() - epoch_start_dt) // 60
+        print(f'total train loop time {epoch_duration_minutes} minutes')
 
-            print(epoch_train_loss)
-            print(epoch_val_loss)
-            epoch_duration_minutes = (datetime.datetime.now() - epoch_start_dt) // 60
-            print(f'epoch train loop time {epoch_duration_minutes} minutes')
-            if checkpoint_dir is not None:
-                cp_fname = f'era5_autoencoder_checkoint_{epoch_num:03d}.pth'
-                cp_path = checkpoint_dir / cp_fname
-                torch.save(ae_model, cp_path)
-                print(f'checkpoint for epoch {epoch_num} saved to {cp_path}')
-                mlflow.log_artifact(cp_path)
-                            
 
-        train_duration_minutes = (datetime.datetime.now() - train_start_dt) // 60
-        print(f'total train loop time {train_duration_minutes} minutes')
-        mlflow.log_param('train_time_minutes', train_duration_minutes)
-        
-        model_fname = 'era5_ae_model.pth'
-        model_save_path = checkpoint_dir / model_fname
-        torch.save(ae_model, model_save_path)
-        mlflow.log_artifact(model_save_path)
-        
-        #end of mlflow run block
-        
+    train_duration_minutes = (datetime.datetime.now() - train_start_dt) // 60
+    print(f'total train loop time {train_duration_minutes} minutes')
     return ae_model
 
 def plot_sample_prediction(select_ds, ae_model, device, out_dir):
@@ -313,9 +275,6 @@ def get_cmd_args():
     parser.add_argument('--config-path', dest='config_path', type=pathlib.Path, default=pathlib.Path('config.json') )
     parser.add_argument('--learning-rate', dest='learning_rate', type=float, default=1e-4)
     parser.add_argument('--model-out-dir', dest='model_out_dir' , type=pathlib.Path, default=pathlib.Path('.'))
-    parser.add_argument('--data-dir',dest='data_dir',type=pathlib.Path, default=None)
-    parser.add_argument('--mlflow-url',dest='mlflow_url',type=str,default='http://localhost')
-    parser.add_argument('--mlflow-port',dest='mlflow_port', type=int,default=4455)
 
     cmd_args = parser.parse_args()
     return cmd_args
@@ -325,9 +284,6 @@ def main():
     cmd_args = get_cmd_args()
     tutorial_config = get_config(cmd_args.config_path)
 
-    exp_name = 'era5_autoencoder'
-    mlflow_server_uri, current_exp = setup_mlflow(cmd_args.mlflow_url, cmd_args.mlflow_port, exp_name)
-    
     resolution_dict = {5.625: '5.625deg'}
     var_subset = ['temperature', 'geopotential']
     pl_subset = [200, 500, 700, 850,1000]   
@@ -336,57 +292,35 @@ def main():
     root_data_dir = get_platform_dir(current_platform, tutorial_config)
     weatherbench_dir = root_data_dir / resolution_dict[5.625]
     
-    if cmd_args.data_dir is not None:
-        wb_arco_path = cmd_args.data_dir
-    else:
-        wb_arco_path = root_data_dir / 'wb_arco'
 
-    train_interval = (
-        datetime.datetime(1980,1,1,0,0),
-        datetime.datetime(2014,1,1,0,0),
-    )
-    val_interval = (
-        datetime.datetime(2014,1,1,0,0),
-        datetime.datetime(2016,1,1,0,0),
-    )
-    
+    wb_arco_path = root_data_dir / 'wb_arco'
+
     (wb_train_ds, wb_train_loader, wb_val_ds, wb_val_loader) = create_data_loaders(wb_arco_path, 
                                                                                    var_subset,
                                                                                    pl_subset,
                                                                                    cmd_args.batch_size,
-                                                                                   train_interval,
-                                                                                   val_interval,
                                                                                   )
-    print(f'using data at {wb_arco_path}')
-
     
     # Autodetect GPU and use if possible
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
-    exp_dir = cmd_args.model_out_dir
-    cdt = datetime.datetime.now()
-    run_dir = exp_dir / f'run_{cdt.year:04d}{cdt.month:02d}{cdt.day:02d}_{cdt.hour:02d}{cdt.minute:02d}'
-    try:
-        run_dir.mkdir(parents=True)
-        print(f'created run dir {run_dir}')
-    except FileExistsError:
-        print(f'run dir {run_dir} already exists')
+    
     ae_model = run_train_loop(device, 
                               wb_train_loader, 
                               wb_val_loader,
                               cmd_args.num_epochs, 
                               cmd_args.learning_rate,
-                              wb_train_ds.num_channels,
-                              cmd_args.batch_size,
-                              current_exp,
-                              run_dir,
+                              wb_train_ds.num_channels, 
                   )
+
+    model_fname = 'era5_ae_model.pth'
+    model_save_path = cmd_args.model_out_dir / model_fname
+    torch.save(ae_model, model_save_path)
+
 
     metrics_train = do_evaluation(ae_model, wb_train_ds[:10], device)
     metrics_val = do_evaluation(ae_model, wb_val_ds[:10], device)
 
-    plot_sample_prediction(wb_val_ds, ae_model, device, run_dir)
+    plot_sample_prediction(wb_val_ds, ae_model, device, cmd_args.model_out_dir)
 
     print('rmse train')
     print(metrics_train)
@@ -397,6 +331,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-    
