@@ -18,10 +18,10 @@ export STD_OUT_PATH=$USER_LOG_DIR/${JOB_NAME}_log_$(date '+%Y%m%d%H%M').out
 export STD_ERR_PATH=$USER_LOG_DIR/${JOB_NAME}_log_$(date '+%Y%m%d%H%M').err
 
 
-echo writing logs to:
-echo stdout $STD_OUT_PATH
-echo stdout $STD_ERR_PATH
-sbatch -o $STD_OUT_PATH -e $STD_ERR_PATH --export USER_DIR util/run_train_climate_zones.sh
+echo "writing logs to:"
+echo "stdout ${STD_OUT_PATH}"
+echo "stderr ${STD_ERR_PATH}"
+sbatch -o "${STD_OUT_PATH}" -e "${STD_ERR_PATH}" --export=ALL,USER_DIR util/run_train_climate_zones.sh
 
 
 
