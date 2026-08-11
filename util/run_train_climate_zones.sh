@@ -12,6 +12,8 @@ set -e
 
 export CONDA_ENV=/gws/ssde/j25b/ai4climate/environments/ai4c_cli_gpu
 export MLFLOW_DIR=$USER_DIR/mlflow
+export EXP_DIR=$USER_DIR/experiments
+
 # uncomment if the mlflow directory doe not exist
 # mkdir -p ${MLFLOW_DIR}
 
@@ -26,6 +28,8 @@ export LEARNING_RATE=0.001
 export BATCH_SIZE=16
 export NUM_EPOCHS=10
 
+export CONFIG_PATH=$AI4C_REPO/notebooks/config.json
+
 conda activate ${CONDA_ENV}
 # conda activate /gws/nopw/j04/mohc_shared/dscop/conda_envs/ai4c_hack_cli_gpu
-python ${AI4C_REPO}/src/ai4c_hack/ClimateZones_Training_Torch.py  --config $CONFIG_PATH --resolution 1.0 --platform jasmin --learning_rate ${LEARNING_RATE} --batch_size ${BATCH_SIZE} --num_epochs ${NUM_EPOCHS} --mlflow_port ${MLFLOW_PORT}
+python ${AI4C_REPO}/src/ai4c_hack/ClimateZones_Training_Torch.py  --config $CONFIG_PATH --resolution 1.0 --platform jasmin --learning-rate ${LEARNING_RATE} --batch-size ${BATCH_SIZE} --epochs ${NUM_EPOCHS} --model-out-dir $EXP_DIR

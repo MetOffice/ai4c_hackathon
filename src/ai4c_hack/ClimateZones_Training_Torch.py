@@ -130,7 +130,15 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_LEARNING_RATE,
         help="Learning rate used by the Adam optimiser.",
     )
+    parser.add_argument(
+        "--model-out-dir",
+        dest="model_out_dir",
+        type=pathlib.Path,
+        default=pathlib.Path.cwd(),
+        help='Root directory for saving model weights and other outputs.',
+        )
     return parser.parse_args()
+
 def load_config(config_path: pathlib.Path) -> dict[str, Any]:
     """Load the JSON configuration file."""
     if not config_path.is_file():
@@ -337,6 +345,15 @@ def main() -> None:
         num_classes=len(target_encoder.classes_),
         hidden_dims=DEFAULT_HIDDEN_DIMS,
     ).to(device)
+
+    exp_name='climate_zones_train_torch'
+    exp_dir = args.model_out_dir / exp_name
+    if not exp_dir.is_dir():
+        exp_dir.mkdir(parents=True)
+        print(f'created experiment directory {exp_dir}')
+    else:
+        print(f'experiment directory {exp_dir}')
+    
     history = train_model(
         model=model,
         train_loader=train_loader,
@@ -353,7 +370,19 @@ def main() -> None:
             "test": evaluate_model(model, test_loader, device, target_encoder, "test"),
         },
     }
+
+    model_name = f'model_{exp_name}.pth'
+    model_out_path = exp_dir / model_name
+
+    print(f'saving model to {model_out_path}')
+    torch.save(model.state_dict(), model_out_path)
+    
     print("\nEvaluation results:")
     print(json.dumps(results, indent=2))
+
+    results_path = exp_dir / 'climate_zones_torch_results.json'
+    with open(results_path,'w') as results_file:
+        json.dump(results, results_file, indent=2)
+    
 if __name__ == "__main__":
     main()
