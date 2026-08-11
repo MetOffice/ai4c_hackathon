@@ -171,7 +171,7 @@ def get_platform_dir(platform: str, config: dict[str, Any]) -> pathlib.Path:
     try:
         return pathlib.Path(default_dirs[platform]) / "climate_zones"
     except KeyError:
-        return pathlib.Path(os.environ["HOME"]) / "climate_zones"
+        return pathlib.Path.home() / "climate_zones"
 
 
 def get_ml_ready_path(root_data_dir: pathlib.Path, config: dict[str, Any], resolution: float) -> pathlib.Path:
