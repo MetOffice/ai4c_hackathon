@@ -1,0 +1,31 @@
+#!/bin/bash -l
+#SBATCH --partition=orchid
+#SBATCH --account=orchid
+#SBATCH --qos=orchid
+#SBATCH --gres=gpu:1
+#SBATCH --time=05:50:00
+#SBATCH --ntasks=16
+#SBATCH --mem=64G
+#SBATCH --job-name=era5_ae_train_ai4c
+
+set -e
+
+export CONDA_ENV=/gws/ssde/j25b/ai4climate/environments/ai4c_cli_gpu
+export MLFLOW_DIR=$USER_DIR/mlflow
+# uncomment if the mlflow directory doe not exist
+# mkdir -p ${MLFLOW_DIR}
+
+export MLFLOW_PORT=4455
+
+export AI4C_REPO=$HOME/prog/ai4c_hackathon
+cd ${AI4C_REPO}
+
+# ./util/mlflow_server.sh  conda ${CONDA_ENV} ${MLFLOW_DIR} ${MLFLOW_PORT} &
+
+export LEARNING_RATE=0.001
+export BATCH_SIZE=16
+export NUM_EPOCHS=10
+
+conda activate ${CONDA_ENV}
+# conda activate /gws/nopw/j04/mohc_shared/dscop/conda_envs/ai4c_hack_cli_gpu
+python ${AI4C_REPO}/src/ai4c_hack/ClimateZones_Training_Torch.py  --config $CONFIG_PATH --resolution 1.0 --platform jasmin --learning_rate ${LEARNING_RATE} --batch_size ${BATCH_SIZE} --num_epochs ${NUM_EPOCHS} --mlflow_port ${MLFLOW_PORT}
