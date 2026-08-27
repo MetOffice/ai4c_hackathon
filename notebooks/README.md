@@ -12,4 +12,10 @@ This directory contains the main tutorial material for the AI4Climate hackathon.
 - Session - Introduction to AI Downscaling
   - [Training and Inference with UNet model - unet_tutorial.ipynb](unet_tutorial.ipynb)
   - [Inference with Flow Matching model - flow_matching_inference_tutorial.ipynb](flow_matching_inference_tutorial.ipynb)
-  - <INSERT LINKS TO NOTEBOOKS>
+
+#### Additional Notebooks
+
+Training an Autoencoder with ERA5
+* [Data Prep for ERA5 Autoencoder](ERA5_data_prep.ipynb)
+* [Training an Autoencoder with ERA5](ERA5_autoencoder.ipynb)
+* [Evaluating the autoencoder](ERA5_ae_evaluation.ipynb)
