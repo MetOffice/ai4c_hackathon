@@ -6,7 +6,7 @@
 #SBATCH --time=05:50:00
 #SBATCH --ntasks=16
 #SBATCH --mem=64G
-#SBATCH --job-name=era5_ae_train_ai4c
+#SBATCH --job-name=climatezones_train_torch
 
 set -e
 

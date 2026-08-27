@@ -17,6 +17,7 @@ import sklearn.preprocessing
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
+
 ALLOWED_PLATFORMS = ("mo_linux", "jasmin", "local")
 ALLOWED_RESOLUTIONS = (0.1, 0.5, 1.0)
 DEFAULT_TARGET_COLUMN = "climate_group"
@@ -28,21 +29,26 @@ DEFAULT_LEARNING_RATE = 1e-3
 DEFAULT_HIDDEN_DIMS = (60, 60, 60)
 DEFAULT_FILTER_PERIOD_START = 1991
 DEFAULT_FILTER_SCENARIO = "historic"
+
+
 @dataclass(frozen=True)
 class SplitData:
     """Container for the prepared train/validation/test data sets."""
     train: pd.DataFrame
     validation: pd.DataFrame
     test: pd.DataFrame
+
+
 class ClimateZonesDataset(Dataset):
     """PyTorch dataset for the climate-zone tabular data."""
+
     def __init__(
-        self,
-        df: pd.DataFrame,
-        feature_columns: list[str],
-        target_column: str,
-        feature_scaler: sklearn.preprocessing.StandardScaler,
-        target_encoder: sklearn.preprocessing.LabelEncoder,
+            self,
+            df: pd.DataFrame,
+            feature_columns: list[str],
+            target_column: str,
+            feature_scaler: sklearn.preprocessing.StandardScaler,
+            target_encoder: sklearn.preprocessing.LabelEncoder,
     ) -> None:
         self._df = df.reset_index(drop=True)
         self._feature_columns = feature_columns
@@ -52,12 +58,17 @@ class ClimateZonesDataset(Dataset):
         targets = target_encoder.transform(self._df[self._target_column])
         self._features = torch.tensor(features, dtype=torch.float32)
         self._targets = torch.tensor(targets, dtype=torch.long)
+
     def __len__(self) -> int:
         return len(self._df)
+
     def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
         return self._features[index], self._targets[index]
+
+
 class ClimateZoneClassifier(nn.Module):
     """Simple fully-connected classifier for climate-zone prediction."""
+
     def __init__(self, input_dim: int, hidden_dims: tuple[int, ...], num_classes: int) -> None:
         super().__init__()
         layers: list[nn.Module] = []
@@ -69,8 +80,11 @@ class ClimateZoneClassifier(nn.Module):
         layers.append(nn.Linear(current_dim, num_classes))
         # CrossEntropyLoss expects raw logits, so we do not add a softmax layer here.
         self.network = nn.Sequential(*layers)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.network(x)
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments for the training pipeline."""
     parser = argparse.ArgumentParser(description="Train a climate-zone classifier with PyTorch.")
@@ -136,8 +150,9 @@ def parse_args() -> argparse.Namespace:
         type=pathlib.Path,
         default=pathlib.Path.cwd(),
         help='Root directory for saving model weights and other outputs.',
-        )
+    )
     return parser.parse_args()
+
 
 def load_config(config_path: pathlib.Path) -> dict[str, Any]:
     """Load the JSON configuration file."""
@@ -145,6 +160,8 @@ def load_config(config_path: pathlib.Path) -> dict[str, Any]:
         raise FileNotFoundError(f"Config file not found: {config_path}")
     with config_path.open("r", encoding="utf-8") as config_file:
         return json.load(config_file)
+
+
 def get_platform_dir(platform: str, config: dict[str, Any]) -> pathlib.Path:
     """Resolve the base climate-zones directory for a platform.
     The configuration file may define platform-specific base directories. If a
@@ -154,13 +171,17 @@ def get_platform_dir(platform: str, config: dict[str, Any]) -> pathlib.Path:
     try:
         return pathlib.Path(default_dirs[platform]) / "climate_zones"
     except KeyError:
-        return pathlib.Path(os.environ["HOME"]) / "climate_zones"
+        return pathlib.Path.home() / "climate_zones"
+
+
 def get_ml_ready_path(root_data_dir: pathlib.Path, config: dict[str, Any], resolution: float) -> pathlib.Path:
     """Construct the path to the ML-ready CSV for the selected resolution."""
     resolutions_dict = {float(key): value for key, value in config["resolutions_names"].items()}
     resolution_name = resolutions_dict[resolution]
     csv_template = config["csv_out_template"]
     return root_data_dir / "ml_ready" / csv_template.format(resolution=resolution_name)
+
+
 def load_data(data_path: pathlib.Path) -> pd.DataFrame:
     """Load the CSV data and apply the same historical subset used in the notebook."""
     if not data_path.is_file():
@@ -168,9 +189,12 @@ def load_data(data_path: pathlib.Path) -> pd.DataFrame:
     print(f"Loading data from: {data_path}")
     zones_df = pd.read_csv(data_path)
     # Reduce the data volume to keep memory use manageable for this tutorial.
-    zones_df = zones_df[(zones_df["period_start"] == DEFAULT_FILTER_PERIOD_START) & (zones_df["scenario"] == DEFAULT_FILTER_SCENARIO)]
+    zones_df = zones_df[
+        (zones_df["period_start"] == DEFAULT_FILTER_PERIOD_START) & (zones_df["scenario"] == DEFAULT_FILTER_SCENARIO)]
     print(f"Data loaded successfully: {zones_df.shape}")
     return zones_df
+
+
 def select_feature_columns(zones_df: pd.DataFrame) -> list[str]:
     """Select the predictor columns used by the tutorial model."""
     precip_mean = [column for column in zones_df.columns if "precipitation" in column and "mean" in column]
@@ -179,6 +203,8 @@ def select_feature_columns(zones_df: pd.DataFrame) -> list[str]:
     if not feature_columns:
         raise ValueError("No feature columns were found in the input data.")
     return feature_columns
+
+
 def split_data(zones_df: pd.DataFrame, random_seed: int, test_frac: float, val_frac: float) -> SplitData:
     """Create train, validation, and test splits using grouped sampling."""
     if not 0.0 < test_frac < 1.0:
@@ -197,46 +223,58 @@ def split_data(zones_df: pd.DataFrame, random_seed: int, test_frac: float, val_f
     print(f"Validation split: {validation_df.shape}")
     print(f"Test split: {test_df.shape}")
     return SplitData(train=train_df, validation=validation_df, test=test_df)
-def fit_preprocessors(train_df: pd.DataFrame, feature_columns: list[str], target_column: str) -> tuple[sklearn.preprocessing.StandardScaler, sklearn.preprocessing.LabelEncoder]:
+
+
+def fit_preprocessors(train_df: pd.DataFrame, feature_columns: list[str], target_column: str) -> tuple[
+    sklearn.preprocessing.StandardScaler, sklearn.preprocessing.LabelEncoder]:
     """Fit preprocessing objects using the training split only."""
     feature_scaler = sklearn.preprocessing.StandardScaler()
     feature_scaler.fit(train_df[feature_columns])
     target_encoder = sklearn.preprocessing.LabelEncoder()
     target_encoder.fit(train_df[target_column])
     return feature_scaler, target_encoder
+
+
 def build_datasets(
-    splits: SplitData,
-    feature_columns: list[str],
-    target_column: str,
-    feature_scaler: sklearn.preprocessing.StandardScaler,
-    target_encoder: sklearn.preprocessing.LabelEncoder,
+        splits: SplitData,
+        feature_columns: list[str],
+        target_column: str,
+        feature_scaler: sklearn.preprocessing.StandardScaler,
+        target_encoder: sklearn.preprocessing.LabelEncoder,
 ) -> tuple[ClimateZonesDataset, ClimateZonesDataset, ClimateZonesDataset]:
     """Create PyTorch datasets for the three data splits."""
     train_dataset = ClimateZonesDataset(splits.train, feature_columns, target_column, feature_scaler, target_encoder)
-    validation_dataset = ClimateZonesDataset(splits.validation, feature_columns, target_column, feature_scaler, target_encoder)
+    validation_dataset = ClimateZonesDataset(splits.validation, feature_columns, target_column, feature_scaler,
+                                             target_encoder)
     test_dataset = ClimateZonesDataset(splits.test, feature_columns, target_column, feature_scaler, target_encoder)
     return train_dataset, validation_dataset, test_dataset
+
+
 def build_dataloaders(
-    train_dataset: ClimateZonesDataset,
-    validation_dataset: ClimateZonesDataset,
-    test_dataset: ClimateZonesDataset,
-    batch_size: int,
+        train_dataset: ClimateZonesDataset,
+        validation_dataset: ClimateZonesDataset,
+        test_dataset: ClimateZonesDataset,
+        batch_size: int,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """Create PyTorch data loaders for the train, validation, and test datasets."""
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
     return train_loader, validation_loader, test_loader
+
+
 def create_model(input_dim: int, num_classes: int, hidden_dims: tuple[int, ...]) -> ClimateZoneClassifier:
     """Instantiate the neural network used for climate-zone classification."""
     return ClimateZoneClassifier(input_dim=input_dim, hidden_dims=hidden_dims, num_classes=num_classes)
+
+
 def train_model(
-    model: ClimateZoneClassifier,
-    train_loader: DataLoader,
-    validation_loader: DataLoader,
-    device: torch.device,
-    epochs: int,
-    learning_rate: float,
+        model: ClimateZoneClassifier,
+        train_loader: DataLoader,
+        validation_loader: DataLoader,
+        device: torch.device,
+        epochs: int,
+        learning_rate: float,
 ) -> dict[str, list[float]]:
     """Train the model and record loss values for each epoch."""
     criterion = nn.CrossEntropyLoss()
@@ -273,12 +311,14 @@ def train_model(
         )
     print("Training complete")
     return history
+
+
 def evaluate_model(
-    model: ClimateZoneClassifier,
-    data_loader: DataLoader,
-    device: torch.device,
-    target_encoder: sklearn.preprocessing.LabelEncoder,
-    split_name: str,
+        model: ClimateZoneClassifier,
+        data_loader: DataLoader,
+        device: torch.device,
+        target_encoder: sklearn.preprocessing.LabelEncoder,
+        split_name: str,
 ) -> dict[str, Any]:
     """Evaluate the model on one split and return summary metrics."""
     model.eval()
@@ -306,6 +346,8 @@ def evaluate_model(
         "f1_weighted": f1,
         "classes": list(target_encoder.classes_),
     }
+
+
 def main() -> None:
     """Run the end-to-end climate-zone training workflow."""
     args = parse_args()
@@ -346,14 +388,14 @@ def main() -> None:
         hidden_dims=DEFAULT_HIDDEN_DIMS,
     ).to(device)
 
-    exp_name='climate_zones_train_torch'
+    exp_name = 'climate_zones_train_torch'
     exp_dir = args.model_out_dir / exp_name
     if not exp_dir.is_dir():
         exp_dir.mkdir(parents=True)
         print(f'created experiment directory {exp_dir}')
     else:
         print(f'experiment directory {exp_dir}')
-    
+
     history = train_model(
         model=model,
         train_loader=train_loader,
@@ -376,13 +418,14 @@ def main() -> None:
 
     print(f'saving model to {model_out_path}')
     torch.save(model.state_dict(), model_out_path)
-    
+
     print("\nEvaluation results:")
     print(json.dumps(results, indent=2))
 
     results_path = exp_dir / 'climate_zones_torch_results.json'
-    with open(results_path,'w') as results_file:
+    with open(results_path, 'w') as results_file:
         json.dump(results, results_file, indent=2)
-    
+
+
 if __name__ == "__main__":
     main()
