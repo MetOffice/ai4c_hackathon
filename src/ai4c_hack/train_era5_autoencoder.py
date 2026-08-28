@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
-# (C) British Crown Copyright 2017-2025, Met Office.
+# (C) British Crown Copyright 2017-2026, Met Office.
 # Please see LICENSE.md for license detail
 
 import pathlib
