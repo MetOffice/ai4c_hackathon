@@ -1,4 +1,7 @@
-#!/bin/bash -l
+u#!/bin/bash -l
+# (C) British Crown Copyright 2017-2026, Met Office.
+# Please see LICENSE.md for license details.
+
 set -e
 
 # This script need to run from the root directory of the data science cop repository, so update the path below accordingly
@@ -6,7 +9,7 @@ export AI4C_HACKATHON_REPO_DIR=~/prog/ai4c_hackathon
 cd ${AI4C_HACKATHON_REPO_DIR}
 
 export AI4CLIMATE_GWS_DIR=/gws/ssde/j25b/ai4climate/
-export USER_DIR=${AI4CLIMATE_GWS_DIR}/users/$USER
+export USER_DIR=${AI4CLIMATE_GWS_DIR}/user/$USER
 
 # Set to a suitable directory for writing log files (for which you have write permission).
 export USER_LOG_DIR=${USER_DIR}/log/

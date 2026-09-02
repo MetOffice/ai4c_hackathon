@@ -7,6 +7,8 @@
 #SBATCH --ntasks=16
 #SBATCH --mem=64G
 #SBATCH --job-name=ai4c_era5_ae_train
+# (C) British Crown Copyright 2017-2026, Met Office.
+# Please see LICENSE.md for license details.
 
 set -e
 
