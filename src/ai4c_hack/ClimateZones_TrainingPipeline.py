@@ -1,3 +1,5 @@
+# (C) British Crown Copyright 2017-2026, Met Office.
+# Please see LICENSE.md for license details.
 """Train and evaluate climate-zone classifiers from ML-ready CSV data.
 
 This module exposes a command-line interface and separates the workflow into:

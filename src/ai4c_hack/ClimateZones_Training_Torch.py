@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# (C) British Crown Copyright 2017-2026, Met Office.
+# Please see LICENSE.md for license details.
 """Train a climate-zone classifier with PyTorch.
 This script loads the preprocessed climate-zone tabular dataset, prepares train,
 validation, and test splits, builds a feed-forward neural network, trains it

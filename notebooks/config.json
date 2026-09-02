@@ -4,6 +4,10 @@
         "mo_linux": "/data/users/dscop/ml_tutorial/",
         "jasmin": "/gws/ssde/j25b/ai4climate/data"
     },
+    "user_dir": {
+        "mo_linux": "/data/users/{username}",
+        "jasmin": "/gws/ssde/j25b/ai4climate/user/{username}"
+    },
     "random_seed": 12345,
     "climate_subgroups": {
         "non-land": "None",
