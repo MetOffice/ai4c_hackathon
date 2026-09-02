@@ -4,7 +4,7 @@ set -e
 
 
 # Set to a suitable directory for writing log files (for which you have write permission).
-export USER_DIR=/gws/ssde/j25b/ai4climate/users/$USER
+export USER_DIR=/gws/ssde/j25b/ai4climate/user/$USER
 export USER_LOG_DIR=${USER_DIR}/log
 
 #uncomment these lines if you do not have a user directory yet
